@@ -153,48 +153,71 @@ export class AnalysisRepository {
    * Get analysis statistics
    */
   async getStats() {
+    const defaultStats = {
+      total_analyses: '0',
+      total_findings: '0',
+      total_critical: '0',
+      total_high: '0',
+      total_medium: '0',
+      total_low: '0',
+      total_info: '0',
+      avg_duration: '0',
+    };
+
     try {
       const result = await db.query(`
         SELECT
-          COUNT(*) as total_analyses,
-          SUM(total_findings) as total_findings,
-          SUM(critical_count) as total_critical,
-          SUM(high_count) as total_high,
-          SUM(medium_count) as total_medium,
-          SUM(low_count) as total_low,
-          SUM(info_count) as total_info,
-          AVG(duration) as avg_duration
+          COUNT(*)::INTEGER as total_analyses,
+          COALESCE(SUM(total_findings), 0)::INTEGER as total_findings,
+          COALESCE(SUM(critical_count), 0)::INTEGER as total_critical,
+          COALESCE(SUM(high_count), 0)::INTEGER as total_high,
+          COALESCE(SUM(medium_count), 0)::INTEGER as total_medium,
+          COALESCE(SUM(low_count), 0)::INTEGER as total_low,
+          COALESCE(SUM(info_count), 0)::INTEGER as total_info,
+          COALESCE(AVG(duration), 0)::NUMERIC as avg_duration
         FROM analyses
         WHERE status = 'completed'
       `);
 
+      // Return default values if no rows found
+      if (!result.rows || result.rows.length === 0) {
+        return defaultStats;
+      }
+
       return result.rows[0];
-    } catch (error) {
+    } catch (error: unknown) {
+      // Handle table doesn't exist error (42P01) or other database errors gracefully
+      const dbError = error as { code?: string };
+      if (dbError?.code === '42P01' || dbError?.code === '42P02') {
+        logger.warn('Analyses table does not exist yet. Run migrations to create it.');
+        return defaultStats;
+      }
       logger.error('Error fetching stats:', error);
-      throw error;
+      // Return default stats instead of throwing to prevent 500 errors
+      return defaultStats;
     }
   }
 
   /**
    * Map database rows to AnalysisResult
    */
-  private mapToAnalysisResult(analysis: any, findings: any[]): AnalysisResult {
+  private mapToAnalysisResult(analysis: Record<string, unknown>, findings: Array<Record<string, unknown>>): AnalysisResult {
     return {
-      id: analysis.id,
-      prNumber: analysis.pr_number,
-      repoFullName: analysis.repo_full_name,
-      status: analysis.status,
+      id: String(analysis.id),
+      prNumber: Number(analysis.pr_number),
+      repoFullName: String(analysis.repo_full_name),
+      status: analysis.status as AnalysisResult['status'],
       findings: findings.map(this.mapToFinding),
-      analyzedAt: analysis.analyzed_at,
-      duration: analysis.duration,
+      analyzedAt: analysis.analyzed_at as Date,
+      duration: Number(analysis.duration),
       stats: {
-        totalFiles: analysis.total_files,
-        totalFindings: analysis.total_findings,
-        critical: analysis.critical_count,
-        high: analysis.high_count,
-        medium: analysis.medium_count,
-        low: analysis.low_count,
-        info: analysis.info_count,
+        totalFiles: Number(analysis.total_files),
+        totalFindings: Number(analysis.total_findings),
+        critical: Number(analysis.critical_count),
+        high: Number(analysis.high_count),
+        medium: Number(analysis.medium_count),
+        low: Number(analysis.low_count),
+        info: Number(analysis.info_count),
       },
     };
   }
@@ -202,22 +225,21 @@ export class AnalysisRepository {
   /**
    * Map database row to ComplianceFinding
    */
-  private mapToFinding(row: any): ComplianceFinding {
+  private mapToFinding(row: Record<string, unknown>): ComplianceFinding {
     return {
-      id: row.id,
-      type: row.type,
-      severity: row.severity,
-      message: row.message,
-      file: row.file,
-      line: row.line,
-      column: row.column,
-      code: row.code,
-      fixSuggestion: row.fix_suggestion,
-      ruleId: row.rule_id,
-      ruleName: row.rule_name,
+      id: String(row.id),
+      type: row.type as ComplianceFinding['type'],
+      severity: row.severity as ComplianceFinding['severity'],
+      message: String(row.message),
+      file: String(row.file),
+      line: row.line as number | undefined,
+      column: row.column as number | undefined,
+      code: row.code as string | undefined,
+      fixSuggestion: row.fix_suggestion as string | undefined,
+      ruleId: String(row.rule_id),
+      ruleName: String(row.rule_name),
     };
   }
 }
 
 export default AnalysisRepository;
-

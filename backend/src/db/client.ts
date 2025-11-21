@@ -6,11 +6,18 @@ class DatabaseClient {
   private pool: Pool;
 
   constructor() {
+    // Heroku Postgres requires SSL connections
+    const isProduction = config.NODE_ENV === 'production';
+    const sslConfig = isProduction 
+      ? { rejectUnauthorized: false } // Heroku Postgres uses self-signed certs
+      : undefined;
+
     this.pool = new Pool({
       connectionString: config.DATABASE_URL,
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
+      ssl: sslConfig,
     });
 
     this.pool.on('error', (err) => {
@@ -23,7 +30,7 @@ class DatabaseClient {
   /**
    * Execute a query
    */
-  async query(text: string, params?: any[]): Promise<QueryResult> {
+  async query(text: string, params?: unknown[]): Promise<QueryResult> {
     const start = Date.now();
     try {
       const result = await this.pool.query(text, params);

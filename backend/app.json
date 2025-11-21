@@ -1,0 +1,54 @@
+{
+  "name": "Compliance Copilot Backend",
+  "description": "AI-powered compliance assistant backend API",
+  "repository": "https://github.com/yourusername/mcp-hackathon",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["node", "express", "compliance", "security"],
+  "image": "heroku/nodejs",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "addons": [
+    "heroku-postgresql:mini",
+    "heroku-redis:mini"
+  ],
+  "env": {
+    "NODE_ENV": {
+      "required": true,
+      "value": "production"
+    },
+    "PORT": {
+      "required": true,
+      "value": "3001"
+    },
+    "E2B_API_KEY": {
+      "required": true,
+      "description": "Your E2B API key"
+    },
+    "GROQ_API_KEY": {
+      "required": true,
+      "description": "Your Groq API key"
+    },
+    "GITHUB_APP_ID": {
+      "required": true,
+      "description": "Your GitHub App ID (numeric)"
+    },
+    "GITHUB_APP_PRIVATE_KEY": {
+      "required": true,
+      "description": "Your GitHub App private key (PEM format)"
+    },
+    "GITHUB_WEBHOOK_SECRET": {
+      "required": true,
+      "description": "Your GitHub webhook secret"
+    }
+  }
+}
+

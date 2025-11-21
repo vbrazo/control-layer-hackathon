@@ -116,7 +116,7 @@ export class PRAnalyzer {
     owner: string,
     repo: string,
     prNumber: number,
-    pr: any
+    pr: { head: { ref: string }; base: { ref: string }; user: { login: string }; title: string; body: string | null }
   ): Promise<PRContext> {
     return {
       owner,
@@ -144,30 +144,32 @@ export class PRAnalyzer {
     const files = await this.githubHandler.getPRFiles(octokit, owner, repo, prNumber);
     
     const changedFiles: ChangedFile[] = await Promise.all(
-      files.map(async (file) => {
+      files.map(async (file: Record<string, unknown>) => {
         let content: string | undefined;
+        const filename = String(file.filename);
+        const status = String(file.status) as ChangedFile['status'];
 
         // Fetch content for text files only
-        if (file.status !== 'removed' && this.isTextFile(file.filename)) {
+        if (status !== 'removed' && this.isTextFile(filename)) {
           try {
             content = await this.githubHandler.getFileContent(
               octokit,
               owner,
               repo,
-              file.filename,
+              filename,
               ref
             );
           } catch (error) {
-            logger.warn(`Could not fetch content for ${file.filename}`);
+            logger.warn(`Could not fetch content for ${filename}`);
           }
         }
 
         return {
-          filename: file.filename,
-          status: file.status as ChangedFile['status'],
-          additions: file.additions,
-          deletions: file.deletions,
-          patch: file.patch,
+          filename,
+          status,
+          additions: Number(file.additions) || 0,
+          deletions: Number(file.deletions) || 0,
+          patch: file.patch as string | undefined,
           content,
         };
       })
@@ -428,7 +430,7 @@ export class PRAnalyzer {
   /**
    * Get installation ID from octokit (helper)
    */
-  private async getInstallationId(octokit: Octokit): Promise<number> {
+  private async getInstallationId(_octokit: Octokit): Promise<number> {
     // This is a simplified version - in reality, you'd extract it from webhook payload
     // or query the GitHub API
     return 0; // Placeholder

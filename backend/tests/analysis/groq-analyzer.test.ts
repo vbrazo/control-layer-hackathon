@@ -2,12 +2,30 @@ import { GroqAnalyzer } from '../../src/analysis/groq-analyzer';
 import { ChangedFile, ComplianceFinding } from '../../src/types';
 
 // Mock Groq SDK
-jest.mock('groq-sdk');
+const mockCreate = jest.fn();
+jest.mock('groq-sdk', () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: mockCreate,
+      },
+    },
+  })),
+}));
 
 describe('GroqAnalyzer', () => {
   let analyzer: GroqAnalyzer;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreate.mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({ findings: [] }),
+        },
+      }],
+    });
     analyzer = new GroqAnalyzer();
   });
 
@@ -106,7 +124,7 @@ function login(username, password) {
         message: 'SQL injection detected',
         file: 'db.js',
         line: 10,
-        code: 'SELECT * FROM users WHERE id = ' + userId,
+        code: "SELECT * FROM users WHERE id = ' + userId",
         ruleId: 'sql-injection',
         ruleName: 'SQL Injection',
       };

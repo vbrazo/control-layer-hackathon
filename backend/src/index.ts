@@ -122,7 +122,7 @@ githubHandler.setupWebhooks(
 app.use(githubHandler.getWebhookMiddleware());
 
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({
     success: false,

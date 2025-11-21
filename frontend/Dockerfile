@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -20,12 +20,13 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy built application
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./
+# Create empty public directory (Next.js doesn't require it, but some configs expect it)
+RUN mkdir -p ./public
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -42,4 +43,3 @@ ENV PORT=3000
 
 # Start application
 CMD ["npm", "start"]
-

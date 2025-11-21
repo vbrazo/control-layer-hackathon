@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS findings (
     message TEXT NOT NULL,
     file VARCHAR(500) NOT NULL,
     line INTEGER,
-    column INTEGER,
+    "column" INTEGER,
     code TEXT,
     fix_suggestion TEXT,
     rule_id VARCHAR(100) NOT NULL,

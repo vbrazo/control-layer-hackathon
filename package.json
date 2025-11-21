@@ -12,6 +12,8 @@
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces",
+    "heroku-postbuild": "npm run build --workspace=backend",
+    "start": "node backend/dist/index.js",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"
   },

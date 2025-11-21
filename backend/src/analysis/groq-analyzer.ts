@@ -160,13 +160,13 @@ Return ONLY valid JSON in this exact format:
         return [];
       }
 
-      return parsed.findings.map((finding: any) => ({
+      return parsed.findings.map((finding: Record<string, unknown>) => ({
         id: uuidv4(),
-        type: finding.type || 'quality',
-        severity: finding.severity || 'medium',
-        message: finding.message || 'Issue detected',
-        file: finding.file,
-        line: finding.line,
+        type: (finding.type as ComplianceFinding['type']) || 'quality',
+        severity: (finding.severity as ComplianceFinding['severity']) || 'medium',
+        message: String(finding.message || 'Issue detected'),
+        file: String(finding.file),
+        line: finding.line as number | undefined,
         column: finding.column,
         code: finding.code,
         fixSuggestion: finding.fixSuggestion || finding.fix_suggestion,
@@ -226,11 +226,11 @@ Return ONLY valid JSON in this exact format:
 
       // Merge suggestions back into findings
       return findings.map(finding => {
-        const suggestion = suggestions.find((s: any) => s.id === finding.id);
+        const suggestion = suggestions.find((s: Record<string, unknown>) => s.id === finding.id);
         if (suggestion) {
           return {
             ...finding,
-            fixSuggestion: suggestion.fix,
+            fixSuggestion: String(suggestion.fix),
           };
         }
         return finding;

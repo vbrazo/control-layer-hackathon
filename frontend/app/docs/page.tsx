@@ -57,7 +57,6 @@ export default function DocsPage() {
               <p className="text-muted-foreground mb-4">
                 Visit the GitHub Marketplace and install the Compliance Copilot app to your repositories.
               </p>
-              <Button>Install GitHub App</Button>
             </div>
 
             <div>

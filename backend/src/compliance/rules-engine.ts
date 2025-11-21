@@ -265,7 +265,7 @@ export class RulesEngine {
   private async applyDependencyRule(
     filename: string,
     content: string,
-    rule: CustomRule
+    _rule: CustomRule
   ): Promise<ComplianceFinding[]> {
     const findings: ComplianceFinding[] = [];
 
@@ -351,7 +351,7 @@ export class RulesEngine {
     const vulnerable: Record<string, string> = {};
 
     // Known vulnerable versions (examples for demo)
-    const knownVulnerable = {
+    const knownVulnerable: Record<string, string[]> = {
       'express': ['4.0.0', '4.1.0', '4.2.0'],
       'lodash': ['4.17.0', '4.17.1'],
       'axios': ['0.18.0', '0.19.0'],

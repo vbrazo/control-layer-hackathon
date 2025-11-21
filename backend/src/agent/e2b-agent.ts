@@ -1,12 +1,39 @@
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import CodeInterpreter from '@e2b/code-interpreter';
 import { E2BAnalysisContext, ComplianceFinding, ChangedFile } from '../types';
-import { getMCPConfig, mcpServers } from '../config/mcp-config';
 import config from '../config';
 import logger from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
+// Type for E2B sandbox execution result
+interface E2BExecutionResult {
+  text?: string;
+  stdout?: string;
+  stderr?: string;
+}
+
+// Type for E2B sandbox with methods we need
+interface E2BSandbox {
+  sandboxId: string;
+  runPythonCode(code: string): Promise<E2BExecutionResult>;
+  kill(): Promise<void>;
+}
+
+// Type guard to ensure the sandbox has the expected interface
+function isE2BSandbox(sandbox: unknown): sandbox is E2BSandbox {
+  return (
+    !!sandbox &&
+    typeof sandbox === 'object' &&
+    'sandboxId' in sandbox &&
+    typeof (sandbox as E2BSandbox).sandboxId === 'string' &&
+    'runPythonCode' in sandbox &&
+    typeof (sandbox as E2BSandbox).runPythonCode === 'function' &&
+    'kill' in sandbox &&
+    typeof (sandbox as E2BSandbox).kill === 'function'
+  );
+}
+
 export class E2BAgent {
-  private sandbox: CodeInterpreter | null = null;
+  private sandbox: E2BSandbox | null = null;
   private githubToken: string;
 
   constructor(githubToken: string) {
@@ -20,7 +47,7 @@ export class E2BAgent {
     logger.info('Initializing E2B sandbox...');
 
     try {
-      this.sandbox = await CodeInterpreter.create({
+      const sandbox = await CodeInterpreter.create({
         apiKey: config.E2B_API_KEY,
         metadata: {
           purpose: 'compliance-analysis',
@@ -28,6 +55,12 @@ export class E2BAgent {
         },
       });
 
+      // Type-safe check instead of double assertion
+      if (!isE2BSandbox(sandbox)) {
+        throw new Error('E2B sandbox does not match expected interface');
+      }
+
+      this.sandbox = sandbox;
       logger.info(`E2B sandbox created: ${this.sandbox.sandboxId}`);
 
       // Setup MCP servers in sandbox
@@ -62,8 +95,8 @@ export class E2BAgent {
       print("MCP servers installed successfully")
       `;
 
-      const result = await this.sandbox.notebook.execCell(installScript);
-      logger.info('MCP servers installed:', result.logs);
+      const result = await this.sandbox.runPythonCode(installScript);
+      logger.info('MCP servers installed:', result);
 
       // Configure GitHub MCP with token
       const configScript = `
@@ -72,7 +105,7 @@ export class E2BAgent {
       print("GitHub MCP configured")
       `;
 
-      await this.sandbox.notebook.execCell(configScript);
+      await this.sandbox.runPythonCode(configScript);
       logger.info('MCP servers configured');
     } catch (error) {
       logger.error('Error setting up MCP servers:', error);
@@ -139,14 +172,14 @@ export class E2BAgent {
       print(f"Setup {len(files)} files in workspace")
       `;
 
-    await this.sandbox.notebook.execCell(setupScript);
+    await this.sandbox.runPythonCode(setupScript);
     logger.info('Workspace setup complete');
   }
 
   /**
    * Run comprehensive analysis using MCP tools
    */
-  private async runAnalysis(context: E2BAnalysisContext): Promise<ComplianceFinding[]> {
+  private async runAnalysis(_context: E2BAnalysisContext): Promise<ComplianceFinding[]> {
     if (!this.sandbox) {
       throw new Error('Sandbox not initialized');
     }
@@ -164,11 +197,12 @@ export class E2BAgent {
           issues = []
           
           # Check for secrets
+          # Using triple-quoted strings to avoid escaping issues
           secret_patterns = {
-              'api_key': r'(api[_-]?key|apikey)\\s*[=:]\\s*["\']([A-Za-z0-9_\\-]{20,})["\']',
+              'api_key': r'''(api[_-]?key|apikey)\\s*[=:]\\s*["']([A-Za-z0-9_\\-]{20,})["']''',
               'aws_key': r'(AKIA[0-9A-Z]{16})',
               'private_key': r'-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----',
-              'password': r'(password|passwd|pwd)\\s*[=:]\\s*["\'][^"\']{8,}["\']',
+              'password': r'''(password|passwd|pwd)\\s*[=:]\\s*["'][^"']{8,}["']''',
           }
           
           for pattern_name, pattern in secret_patterns.items():
@@ -209,15 +243,11 @@ export class E2BAgent {
       `;
 
     try {
-      const result = await this.sandbox.notebook.execCell(analysisScript);
+      const result = await this.sandbox.runPythonCode(analysisScript);
       
-      if (result.error) {
-        logger.error('Analysis script error:', result.error);
-        return [];
-      }
-
       // Parse findings from output
-      const output = result.logs.stdout.join('\n') + result.logs.stderr.join('\n');
+      // E2B runPythonCode returns results with text output
+      const output = typeof result === 'string' ? result : (result.text || result.stdout || '');
       const findings = this.parseAnalysisOutput(output);
 
       return findings;
@@ -239,24 +269,24 @@ export class E2BAgent {
         return [];
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]) as { findings?: unknown[] };
       
       if (!parsed.findings || !Array.isArray(parsed.findings)) {
         return [];
       }
 
-      return parsed.findings.map((finding: any) => ({
+      return (parsed.findings as Array<Record<string, unknown>>).map((finding) => ({
         id: uuidv4(),
-        type: finding.type || 'security',
-        severity: finding.severity || 'medium',
-        message: finding.message,
-        file: finding.file,
-        line: finding.line,
-        column: finding.column,
-        code: finding.code,
-        fixSuggestion: finding.fixSuggestion,
-        ruleId: `e2b-${finding.type}`,
-        ruleName: finding.ruleName || 'E2B Analysis',
+        type: (finding.type as ComplianceFinding['type']) || 'security',
+        severity: (finding.severity as ComplianceFinding['severity']) || 'medium',
+        message: String(finding.message || ''),
+        file: String(finding.file || ''),
+        line: finding.line as number | undefined,
+        column: finding.column as number | undefined,
+        code: finding.code as string | undefined,
+        fixSuggestion: finding.fixSuggestion as string | undefined,
+        ruleId: `e2b-${finding.type || 'unknown'}`,
+        ruleName: String(finding.ruleName || 'E2B Analysis'),
       }));
     } catch (error) {
       logger.error('Error parsing analysis output:', error);
@@ -295,8 +325,8 @@ else:
 `;
 
     try {
-      const result = await this.sandbox!.notebook.execCell(script);
-      const output = result.logs.stdout.join('\n');
+      const result = await this.sandbox!.runPythonCode(script);
+      const output = typeof result === 'string' ? result : (result.text || result.stdout || '');
       
       if (output.includes('error')) {
         return null;
@@ -312,7 +342,7 @@ else:
   /**
    * Execute custom security scanners via MCP
    */
-  async runSecurityScan(files: ChangedFile[]): Promise<ComplianceFinding[]> {
+  async runSecurityScan(_files: ChangedFile[]): Promise<ComplianceFinding[]> {
     if (!this.sandbox) {
       await this.initialize();
     }
@@ -352,8 +382,8 @@ print(json.dumps({'findings': findings}, indent=2))
 `;
 
     try {
-      const result = await this.sandbox.notebook.execCell(scanScript);
-      const output = result.logs.stdout.join('\n');
+      const result = await this.sandbox!.runPythonCode(scanScript);
+      const output = typeof result === 'string' ? result : (result.text || result.stdout || '');
       return this.parseAnalysisOutput(output);
     } catch (error) {
       logger.error('Error running security scan:', error);
@@ -369,7 +399,7 @@ print(json.dumps({'findings': findings}, indent=2))
       logger.info(`Cleaning up E2B sandbox: ${this.sandbox.sandboxId}`);
       
       try {
-        await this.sandbox.close();
+        await this.sandbox.kill();
         this.sandbox = null;
         logger.info('E2B sandbox cleaned up successfully');
       } catch (error) {

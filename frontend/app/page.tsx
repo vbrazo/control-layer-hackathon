@@ -22,10 +22,6 @@ export default function HomePage() {
             <Link href="/docs">
               <Button variant="ghost">Docs</Button>
             </Link>
-            <Button>
-              <Github className="mr-2 h-4 w-4" />
-              Install App
-            </Button>
           </nav>
         </div>
       </header>
@@ -48,10 +44,6 @@ export default function HomePage() {
           </p>
 
           <div className="flex gap-4">
-            <Button size="lg">
-              <Github className="mr-2 h-5 w-5" />
-              Install GitHub App
-            </Button>
             <Link href="/dashboard">
               <Button size="lg" variant="outline">
                 View Demo <ArrowRight className="ml-2 h-5 w-5" />
@@ -207,9 +199,9 @@ export default function HomePage() {
             <p className="text-lg max-w-2xl opacity-90">
               Install our GitHub App and start catching compliance issues before they reach production.
             </p>
-            <Button size="lg" variant="secondary">
+            <Button size="lg" variant="secondary" onClick={() => window.open('https://calendly.com/imvitoroliveira', '_blank')}>
               <Github className="mr-2 h-5 w-5" />
-              Install Now - It's Free
+              Contact us to install the app
             </Button>
           </CardContent>
         </Card>

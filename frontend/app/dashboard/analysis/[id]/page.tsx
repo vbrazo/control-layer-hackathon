@@ -10,6 +10,7 @@ import { ComplianceTable } from '@/components/ComplianceTable';
 import { SeverityBadge } from '@/components/SeverityBadge';
 import { formatDate, formatDuration } from '@/lib/utils';
 import { Shield, ArrowLeft, Activity } from 'lucide-react';
+import { getMockAnalysis } from '@/lib/mock-data';
 
 export default function AnalysisDetailPage() {
   const params = useParams();
@@ -23,7 +24,12 @@ export default function AnalysisDetailPage() {
         const data = await analysisApi.getAnalysis(id);
         setAnalysis(data);
       } catch (error) {
-        console.error('Failed to fetch analysis:', error);
+        console.error('Failed to fetch analysis, using mock data:', error);
+        // Use mock data as fallback
+        const mockData = getMockAnalysis(id);
+        if (mockData) {
+          setAnalysis(mockData);
+        }
       } finally {
         setLoading(false);
       }

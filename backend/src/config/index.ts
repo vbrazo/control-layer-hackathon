@@ -1,7 +1,20 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config();
+// Load .env file if it exists (for local development)
+// On Heroku, environment variables are already in process.env
+dotenv.config({ path: '.env' });
+
+// Debug: Log which env vars are present (without values for security)
+if (process.env.NODE_ENV === 'production') {
+  const requiredVars = ['E2B_API_KEY', 'GROQ_API_KEY', 'GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY', 'GITHUB_WEBHOOK_SECRET', 'DATABASE_URL'];
+  console.log('Environment variables check:');
+  requiredVars.forEach(varName => {
+    const isSet = !!process.env[varName];
+    const length = process.env[varName]?.length || 0;
+    console.log(`  ${varName}: ${isSet ? `SET (${length} chars)` : 'NOT SET'}`);
+  });
+}
 
 const configSchema = z.object({
   // Server
@@ -39,9 +52,18 @@ try {
 } catch (error) {
   if (error instanceof z.ZodError) {
     console.error('Configuration validation failed:');
+    console.error('Missing or invalid environment variables:');
     error.errors.forEach((err) => {
-      console.error(`  - ${err.path.join('.')}: ${err.message}`);
+      const varName = err.path.join('.');
+      const isSet = process.env[varName] !== undefined;
+      console.error(`  - ${varName}: ${err.message}${isSet ? ' (value is set but invalid)' : ' (not set)'}`);
     });
+    console.error('\nPlease ensure all required environment variables are set in Heroku:');
+    console.error('  heroku config:set E2B_API_KEY=your_key -a your-app-name');
+    console.error('  heroku config:set GROQ_API_KEY=your_key -a your-app-name');
+    console.error('  heroku config:set GITHUB_APP_ID=your_id -a your-app-name');
+    console.error('  heroku config:set GITHUB_APP_PRIVATE_KEY="your_key" -a your-app-name');
+    console.error('  heroku config:set GITHUB_WEBHOOK_SECRET=your_secret -a your-app-name');
     process.exit(1);
   }
   throw error;

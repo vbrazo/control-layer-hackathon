@@ -1,0 +1,30 @@
+{
+  "name": "Compliance Copilot Frontend",
+  "description": "AI-powered compliance assistant dashboard",
+  "repository": "https://github.com/yourusername/mcp-hackathon",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["nextjs", "react", "compliance", "dashboard"],
+  "image": "heroku/nodejs",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "NODE_ENV": {
+      "required": true,
+      "value": "production"
+    },
+    "NEXT_PUBLIC_API_URL": {
+      "required": true,
+      "description": "Backend API URL (e.g., https://your-backend-app.herokuapp.com)"
+    }
+  }
+}
+

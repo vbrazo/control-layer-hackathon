@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -22,16 +22,19 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
+# Copy scripts and schema for migrations
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src/db/schema.sql ./src/db/schema.sql
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-USER nodejs
+# Note: Migration will run as root in docker-compose command, then switch to nodejs
 
 # Expose port
 EXPOSE 3001

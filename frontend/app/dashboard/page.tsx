@@ -9,38 +9,84 @@ import { SeverityBadge } from '@/components/SeverityBadge';
 import { formatDate, formatDuration } from '@/lib/utils';
 import { Shield, ArrowLeft, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { mockAnalyses, mockStats } from '@/lib/mock-data';
+
+// Skeleton loader component
+function StatCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+        <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+      </CardHeader>
+      <CardContent>
+        <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
+        <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+      </CardContent>
+    </Card>
+  );
+}
+
+function AnalysisItemSkeleton() {
+  return (
+    <div className="border rounded-lg p-4 animate-pulse">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex-1">
+          <div className="h-5 w-48 bg-muted rounded mb-2" />
+          <div className="h-4 w-24 bg-muted rounded" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-6 w-16 bg-muted rounded" />
+          <div className="h-6 w-16 bg-muted rounded" />
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="h-4 w-20 bg-muted rounded" />
+        <div className="h-4 w-16 bg-muted rounded" />
+        <div className="h-4 w-24 bg-muted rounded" />
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [analyses, setAnalyses] = useState<AnalysisResult[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [analysesLoading, setAnalysesLoading] = useState(true);
 
+  // Load stats and analyses independently for progressive loading
   useEffect(() => {
-    async function fetchData() {
+    // Load stats first (usually faster)
+    async function fetchStats() {
       try {
-        const [analysesData, statsData] = await Promise.all([
-          analysisApi.getRecentAnalyses(20),
-          analysisApi.getStats(),
-        ]);
-        setAnalyses(analysesData);
+        const statsData = await analysisApi.getStats();
         setStats(statsData);
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+        console.error('Failed to fetch stats, using mock data:', error);
+        setStats(mockStats);
       } finally {
-        setLoading(false);
+        setStatsLoading(false);
       }
     }
 
-    fetchData();
-  }, []);
+    // Load analyses separately
+    async function fetchAnalyses() {
+      try {
+        const analysesData = await analysisApi.getRecentAnalyses(20);
+        setAnalyses(analysesData);
+      } catch (error) {
+        console.error('Failed to fetch analyses, using mock data:', error);
+        setAnalyses(mockAnalyses);
+      } finally {
+        setAnalysesLoading(false);
+      }
+    }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Activity className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+    // Start both requests but don't wait for both
+    fetchStats();
+    fetchAnalyses();
+  }, []);
 
   const chartData = stats
     ? [
@@ -79,61 +125,72 @@ export default function DashboardPage() {
       <div className="container py-8 space-y-8">
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Analyses</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalAnalyses || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Avg: {stats ? formatDuration(stats.avgDuration) : '0s'}
-              </p>
-            </CardContent>
-          </Card>
+          {statsLoading ? (
+            <>
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Analyses</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.totalAnalyses || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Avg: {stats ? formatDuration(stats.avgDuration) : '0s'}
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Findings</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.totalFindings || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Across all repositories
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Findings</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.totalFindings || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Across all repositories
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Critical Issues</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-500">
-                {stats?.criticalIssues || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Requires immediate attention
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Critical Issues</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-500">
+                    {stats?.criticalIssues || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Requires immediate attention
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">High Priority</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-500">
-                {stats?.highIssues || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Should be addressed soon
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">High Priority</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-500">
+                    {stats?.highIssues || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Should be addressed soon
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Charts and Recent Analyses */}
@@ -145,7 +202,11 @@ export default function DashboardPage() {
               <CardDescription>Distribution of compliance issues</CardDescription>
             </CardHeader>
             <CardContent>
-              {chartData.some(d => d.value > 0) ? (
+              {statsLoading ? (
+                <div className="flex items-center justify-center h-[300px]">
+                  <Activity className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : chartData.some(d => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -182,30 +243,53 @@ export default function DashboardPage() {
               <CardDescription>Overall compliance metrics</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b">
-                <span className="text-sm font-medium">Security Issues</span>
-                <span className="text-2xl font-bold text-red-500">
-                  {stats?.criticalIssues + stats?.highIssues || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b">
-                <span className="text-sm font-medium">Medium Priority</span>
-                <span className="text-2xl font-bold text-yellow-500">
-                  {stats?.mediumIssues || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b">
-                <span className="text-sm font-medium">Low Priority</span>
-                <span className="text-2xl font-bold text-blue-500">
-                  {stats?.lowIssues || 0}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Info</span>
-                <span className="text-2xl font-bold text-gray-500">
-                  {stats?.infoIssues || 0}
-                </span>
-              </div>
+              {statsLoading ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                    <div className="h-8 w-16 bg-muted animate-pulse rounded" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <span className="text-sm font-medium">Security Issues</span>
+                    <span className="text-2xl font-bold text-red-500">
+                      {(stats?.criticalIssues ?? 0) + (stats?.highIssues ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <span className="text-sm font-medium">Medium Priority</span>
+                    <span className="text-2xl font-bold text-yellow-500">
+                      {stats?.mediumIssues || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b">
+                    <span className="text-sm font-medium">Low Priority</span>
+                    <span className="text-2xl font-bold text-blue-500">
+                      {stats?.lowIssues || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Info</span>
+                    <span className="text-2xl font-bold text-gray-500">
+                      {stats?.infoIssues || 0}
+                    </span>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -217,7 +301,13 @@ export default function DashboardPage() {
             <CardDescription>Latest PR compliance scans</CardDescription>
           </CardHeader>
           <CardContent>
-            {analyses.length === 0 ? (
+            {analysesLoading ? (
+              <div className="space-y-3">
+                <AnalysisItemSkeleton />
+                <AnalysisItemSkeleton />
+                <AnalysisItemSkeleton />
+              </div>
+            ) : analyses.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 <Activity className="h-12 w-12 mb-4" />
                 <p>No analyses yet. Install the GitHub App to get started.</p>

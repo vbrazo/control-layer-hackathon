@@ -1,8 +1,28 @@
 import { App } from '@octokit/app';
 import { Octokit } from '@octokit/rest';
 import { createNodeMiddleware, EmitterWebhookEvent } from '@octokit/webhooks';
+import crypto from 'crypto';
 import config from '../config';
 import logger from '../utils/logger';
+
+// Type definitions for webhook events
+type PullRequestPayload = EmitterWebhookEvent<'pull_request.opened'>['payload'] | 
+  EmitterWebhookEvent<'pull_request.synchronize'>['payload'] | 
+  EmitterWebhookEvent<'pull_request.reopened'>['payload'];
+
+type IssueCommentPayload = EmitterWebhookEvent<'issue_comment.created'>['payload'];
+
+export interface PullRequestEvent {
+  payload: PullRequestPayload;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  octokit: any;
+}
+
+export interface IssueCommentEvent {
+  payload: IssueCommentPayload;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  octokit: any;
+}
 
 export class GitHubAppHandler {
   private app: App;
@@ -33,13 +53,13 @@ export class GitHubAppHandler {
    * Get installation access token
    */
   async getInstallationToken(installationId: number): Promise<string> {
-    const { token } = await this.app.octokit.request(
+    const response = await this.app.octokit.request(
       'POST /app/installations/{installation_id}/access_tokens',
       {
         installation_id: installationId,
       }
     );
-    return token;
+    return response.data.token;
   }
 
   /**
@@ -47,7 +67,6 @@ export class GitHubAppHandler {
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
     try {
-      const crypto = require('crypto');
       const hmac = crypto.createHmac('sha256', this.webhookSecret);
       const digest = 'sha256=' + hmac.update(payload).digest('hex');
       return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
@@ -61,31 +80,31 @@ export class GitHubAppHandler {
    * Setup webhook event handlers
    */
   setupWebhooks(
-    onPullRequest: (event: any) => Promise<void>,
-    onIssueComment: (event: any) => Promise<void>
+    onPullRequest: (event: PullRequestEvent) => Promise<void>,
+    onIssueComment: (event: IssueCommentEvent) => Promise<void>
   ): void {
     // Handle pull_request events
-    this.app.webhooks.on('pull_request.opened', async ({ payload, octokit }) => {
-      logger.info(`PR opened: ${payload.repository.full_name}#${payload.pull_request.number}`);
-      await onPullRequest({ payload, octokit });
+    this.app.webhooks.on('pull_request.opened', async (event) => {
+      logger.info(`PR opened: ${event.payload.repository.full_name}#${event.payload.pull_request.number}`);
+      await onPullRequest(event);
     });
 
-    this.app.webhooks.on('pull_request.synchronize', async ({ payload, octokit }) => {
-      logger.info(`PR updated: ${payload.repository.full_name}#${payload.pull_request.number}`);
-      await onPullRequest({ payload, octokit });
+    this.app.webhooks.on('pull_request.synchronize', async (event) => {
+      logger.info(`PR updated: ${event.payload.repository.full_name}#${event.payload.pull_request.number}`);
+      await onPullRequest(event);
     });
 
-    this.app.webhooks.on('pull_request.reopened', async ({ payload, octokit }) => {
-      logger.info(`PR reopened: ${payload.repository.full_name}#${payload.pull_request.number}`);
-      await onPullRequest({ payload, octokit });
+    this.app.webhooks.on('pull_request.reopened', async (event) => {
+      logger.info(`PR reopened: ${event.payload.repository.full_name}#${event.payload.pull_request.number}`);
+      await onPullRequest(event);
     });
 
     // Handle issue_comment events (for @mention commands)
-    this.app.webhooks.on('issue_comment.created', async ({ payload, octokit }) => {
+    this.app.webhooks.on('issue_comment.created', async (event) => {
       // Check if comment is on a PR
-      if (payload.issue.pull_request) {
-        logger.info(`Comment on PR: ${payload.repository.full_name}#${payload.issue.number}`);
-        await onIssueComment({ payload, octokit });
+      if (event.payload.issue.pull_request) {
+        logger.info(`Comment on PR: ${event.payload.repository.full_name}#${event.payload.issue.number}`);
+        await onIssueComment(event);
       }
     });
 
@@ -96,7 +115,8 @@ export class GitHubAppHandler {
    * Get webhook middleware for Express
    */
   getWebhookMiddleware() {
-    return createNodeMiddleware(this.app.webhooks, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return createNodeMiddleware(this.app.webhooks as any, {
       path: '/api/webhook',
     });
   }
@@ -255,7 +275,7 @@ export class GitHubAppHandler {
     owner: string,
     repo: string,
     prNumber: number
-  ): Promise<any[]> {
+  ): Promise<Array<Record<string, unknown>>> {
     try {
       const { data: files } = await octokit.pulls.listFiles({
         owner,
